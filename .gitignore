@@ -1,4 +1,8 @@
+# Python
+*/__pycache__
+__pycache__/*
+
+# Folders
 env/*
 */.DS_Store
 .DS_Store
-
