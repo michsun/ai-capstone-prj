@@ -1,3 +1,6 @@
+# CHANGES MADE:
+# changed VRDataLoader class: states to actions, load_data method
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -113,6 +116,7 @@ class VRNet(nn.Module):
         x = F.relu(self.fc3(x))
         x = self.fc4(x)
         return x
+# Changed - Sandra 10/04 - 8:00 pm
 
 class VRDataLoader(Dataset):
     def __init__(self, data_dir, batch_size=1):
@@ -120,7 +124,7 @@ class VRDataLoader(Dataset):
         # self.startRun = startRun
         # self.lastRun = lastRun
         self.batch_size = batch_size
-        self.rgb_images, self.states = self.load_data()
+        self.rgb_images, self.actions = self.load_data() # Changed - Sandra 10/04 - 7:50pm states to actions
         # self.rgb_images, self.depth_images, self.states = self.load_data()
         # self.arrayIndicies = list([i for i in range(len(self.rgb_images))])
         # print(len(self.rgb_images), len(self.depth_images), len(self.states))
@@ -158,7 +162,7 @@ class VRDataLoader(Dataset):
         return rgbs, actions
     
     def __len__(self):
-        return len(self.states) // self.batch_size
+        return len(self.actions) // self.batch_size # changed - Sandra - states to actions
 
     def __getitem__(self, idx):
         #shuffle array index mapping
@@ -169,16 +173,16 @@ class VRDataLoader(Dataset):
         desiredIndexes = self.arrayIndicies[idx:idx+self.batch_size]
 
         rgb_img = []
-        state = []
+        action = []
         
         for i in desiredIndexes:
             rgb_img.append(self.rgb_images[i])
-            state.append(self.states[i])
+            action.append(self.actions[i])
 
         rgb_img = torch.stack(rgb_img)
-        state = torch.stack(state)
+        action = torch.stack(action)
 
-        return rgb_img, state
+        return rgb_img, action
     
     # def _datloada(self):
     #     rgbs = []
