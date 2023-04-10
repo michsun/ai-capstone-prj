@@ -1,4 +1,9 @@
-from model import VRNet
+from model import VRNet, VRDataLoader
+
+
+def data_preprocessing():
+    return
+
 
 
 def train(epochs):
@@ -9,4 +14,7 @@ def train(epochs):
     parameter = "Something"
 
 if __name__ == "__main__":
-    train()
+    data_dir = "../data/simulated-examples"
+    rgbs, actions = VRDataLoader(data_dir=data_dir).load_data()
+    print(actions)
+    # train()

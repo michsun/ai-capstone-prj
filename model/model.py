@@ -6,6 +6,7 @@ from torch.utils.data import Dataset
 import os
 import numpy as np
 import matplotlib as plt
+import pandas as pd
 
 
 ## SpatialSoftmax implementation taken from https://gist.github.com/jeasinema/1cba9b40451236ba2cfb507687e08834
@@ -114,114 +115,47 @@ class VRNet(nn.Module):
         return x
 
 class VRDataLoader(Dataset):
-    def __init__(self, data_dir, startRun, lastRun, batch_size=1):
+    def __init__(self, data_dir, batch_size=1):
         self.data_dir = data_dir
-        self.startRun = startRun
-        self.lastRun = lastRun
+        # self.startRun = startRun
+        # self.lastRun = lastRun
         self.batch_size = batch_size
-        self.rgb_images, self.depth_images, self.states = self.load_data()
-        self.arrayIndicies = list([i for i in range(len(self.rgb_images))])
-        print(len(self.rgb_images), len(self.depth_images), len(self.states))
-        assert(len(self.rgb_images) == len(self.depth_images) == len(self.states))
+        self.rgb_images, self.states = self.load_data()
+        # self.rgb_images, self.depth_images, self.states = self.load_data()
+        # self.arrayIndicies = list([i for i in range(len(self.rgb_images))])
+        # print(len(self.rgb_images), len(self.depth_images), len(self.states))
+        # assert(len(self.rgb_images) == len(self.depth_images) == len(self.states))
+    
+    # train_data_loader function - by Sandra
+    # Output: rgbs list and action list
 
-    def load_data(self):
+    def load_data(self, number_of_episodes=5, number_of_samples_in_each_episode=499):
         rgbs = []
-        depths = []
-        states = []
-        for i in range(self.lastRun - self.startRun):
-            rgb_dir = os.path.join(self.data_dir, f'{i+self.startRun}', 'rgb')
-            depth_dir = os.path.join(self.data_dir, f'{i+self.startRun}', 'depth')
-            state_dir = os.path.join(self.data_dir, f'{i+self.startRun}', 'states')
-            
-            state_names = os.listdir(state_dir) #get all files in the directory
-            state_names = [state_name for state_name in state_names if state_name.endswith('.csv')] #only get the csv files
-            num_points = len(state_names)
-            lastState = None
-
-            this_run_states = []
-            for i in range(num_points):
-                rgb_path = os.path.join(rgb_dir, f'rgb{i}.png')
-                depth_path = os.path.join(depth_dir, f'depth{i}.png')
-                state_path = os.path.join(state_dir, f'states{i}.csv')
-
-                with open(state_path, 'r') as f:
-                    data = f.readlines()
-                    isOpen = int(data[0].split(',')[6])
-                    data = data[1].split(',')
-                    data.append(isOpen)
-                    #convert to pytorch tensor
-                    state = np.array([float(x) for x in data])
-                    this_state = np.zeros(7)
-                    this_state[0:6] = state[0:6]
-                    this_state[6] = state[6]
-                    this_run_states.append(this_state)
-
-                if i == 0:
-                    continue
-
-                rgb = torchvision.io.read_image(rgb_path)
-                depth = torchvision.io.read_image(depth_path)
-
-                rgbs.append(rgb)
-                depths.append(depth)
-
-            #smooth out velocities with a gaussian for this run
-            this_run_states = np.array(this_run_states, dtype=np.float32)
-
-            size = 15
-            sigma = 4
-            filter_range = np.linspace(-int(size/2),int(size/2),size)
-            gaussian_filter = [1 / (sigma * np.sqrt(2*np.pi)) * np.exp(-x**2/(2*sigma**2)) for x in filter_range]
-            
-            #smooth out positions with a gaussian
-            for i in range(6):
-                this_run_states[:, i] = np.convolve(this_run_states[:, i], gaussian_filter, mode='same')
-
-            #take numerical derivative of position to get velocity
-            this_run_states[:-1, 0:6] = np.diff(this_run_states[:, 0:6], axis=0)
-            this_run_states = this_run_states[1:, :]
-
-            #smooth out velocities with a gaussian
-            # for i in range(6):
-            #     this_run_states[:, i] = np.convolve(this_run_states[:, i], gaussian_filter, mode='same')
-
-            #add to total list of states
-            states.extend(this_run_states)
-
-        #smooth out velocities with a moving average
-        states = np.array(states, dtype=np.float32)
+        actions = []
+        # data_dir = "/content/drive/Shareddrives/AI Capstone -15B/Data Generation using Simulated environment/simulated-samples"
+        data_dir = "data/simulated-samples"
         
-        #plot x velocity after smoothing
-        states = torch.tensor(states).to('cuda')
+        for i in range(number_of_episodes):
+            episode_number = str(i)
+            print(episode_number)
+            episode_dir = os.path.join(data_dir, "episode-" + episode_number)
+            episode_info_df = pd.read_csv( episode_dir + "/episode-" + episode_number +".csv")
+            episode_actions = episode_info_df["Action"].iloc[0:498]
+            for j in range(number_of_samples_in_each_episode):
+                sample_number = str(j + 1)
+                if int(sample_number) < 10:
+                    zero_prefix = "00"
+                elif int(sample_number) < 100:
+                    zero_prefix = "0"
+                else:
+                    zero_prefix = ""
+                rgb_path = os.path.join(episode_dir, "episode-" + episode_number + "-" + zero_prefix + sample_number+ ".png")
 
-        #compute mean and std of images
-        rgbs = torch.stack(rgbs).float() / 255
-        depths = torch.stack(depths).float() / 255
-        rgb_mean = torch.mean(rgbs, dim=(0, 2, 3))
-        depth_mean = torch.mean(depths, dim=(0, 2, 3))
-        print(rgbs.shape)
-        
-        #compute std
-        rgb_std = torch.std(rgbs, dim=(0, 2, 3))
-        depth_std = torch.std(depths, dim=(0, 2, 3))
-        #normalize images
-        rgbs[:,0,:,:] = (rgbs[:,0,:,:] - rgb_mean[0]) / rgb_std[0]
-        rgbs[:,1,:,:] = (rgbs[:,1,:,:] - rgb_mean[0]) / rgb_std[1]
-        rgbs[:,2,:,:] = (rgbs[:,2,:,:] - rgb_mean[0]) / rgb_std[2]
-        depths = (depths - depth_mean) / depth_std
+                rgb_image = torchvision.io.read_image(rgb_path)
+                rgbs.append(rgb_image)
+            actions.append(episode_actions)
 
-        print('rgb mean: ', rgb_mean)
-        print('rgb std: ', rgb_std)
-        print('depth mean: ', depth_mean)
-        print('depth std: ', depth_std)
-        print('states mean: ', torch.mean(states, dim=0))
-        print('states std: ', torch.std(states, dim=0))
-
-        #normalize states
-        for i in range(6):
-            states[:, i] = (states[:, i] - torch.mean(states[:, i])) / torch.std(states[:, i])
-
-        return rgbs, depths, states
+        return rgbs, actions
     
     def __len__(self):
         return len(self.states) // self.batch_size
@@ -235,19 +169,141 @@ class VRDataLoader(Dataset):
         desiredIndexes = self.arrayIndicies[idx:idx+self.batch_size]
 
         rgb_img = []
-        depth_img = []
         state = []
         
         for i in desiredIndexes:
             rgb_img.append(self.rgb_images[i])
-            depth_img.append(self.depth_images[i])
             state.append(self.states[i])
 
         rgb_img = torch.stack(rgb_img)
-        depth_img = torch.stack(depth_img)
         state = torch.stack(state)
 
-        return rgb_img, depth_img, state
+        return rgb_img, state
+    
+    # def _datloada(self):
+    #     rgbs = []
+    #     states = []
+        
+    #     for i in range(self.lastRun - self.startRun):
+    #         rgb_dir = os.path.join(self.data_dir, f'{i+self.startRun}', 'rgb')
+    #         depth_dir = os.path.join(self.data_dir, f'{i+self.startRun}', 'depth')
+    #         state_dir = os.path.join(self.data_dir, f'{i+self.startRun}', 'states')
+            
+    #         state_names = os.listdir(state_dir) #get all files in the directory
+    #         state_names = [state_name for state_name in state_names if state_name.endswith('.csv')] #only get the csv files
+    #         num_points = len(state_names)
+    #         lastState = None
+
+    #         this_run_states = []
+    #         for i in range(num_points):
+    #             rgb_path = os.path.join(rgb_dir, f'rgb{i}.png')
+    #             depth_path = os.path.join(depth_dir, f'depth{i}.png')
+    #             state_path = os.path.join(state_dir, f'states{i}.csv')
+
+    #             with open(state_path, 'r') as f:
+    #                 data = f.readlines()
+    #                 isOpen = int(data[0].split(',')[6])
+    #                 data = data[1].split(',')
+    #                 data.append(isOpen)
+    #                 #convert to pytorch tensor
+    #                 state = np.array([float(x) for x in data])
+    #                 this_state = np.zeros(7)
+    #                 this_state[0:6] = state[0:6]
+    #                 this_state[6] = state[6]
+    #                 this_run_states.append(this_state)
+
+    #             if i == 0:
+    #                 continue
+
+    #             rgb = torchvision.io.read_image(rgb_path)
+    #             depth = torchvision.io.read_image(depth_path)
+
+    #             rgbs.append(rgb)
+    #             depths.append(depth)
+
+    #         #smooth out velocities with a gaussian for this run
+    #         this_run_states = np.array(this_run_states, dtype=np.float32)
+
+    #         size = 15
+    #         sigma = 4
+    #         filter_range = np.linspace(-int(size/2),int(size/2),size)
+    #         gaussian_filter = [1 / (sigma * np.sqrt(2*np.pi)) * np.exp(-x**2/(2*sigma**2)) for x in filter_range]
+            
+    #         #smooth out positions with a gaussian
+    #         for i in range(6):
+    #             this_run_states[:, i] = np.convolve(this_run_states[:, i], gaussian_filter, mode='same')
+
+    #         #take numerical derivative of position to get velocity
+    #         this_run_states[:-1, 0:6] = np.diff(this_run_states[:, 0:6], axis=0)
+    #         this_run_states = this_run_states[1:, :]
+
+    #         #smooth out velocities with a gaussian
+    #         # for i in range(6):
+    #         #     this_run_states[:, i] = np.convolve(this_run_states[:, i], gaussian_filter, mode='same')
+
+    #         #add to total list of states
+    #         states.extend(this_run_states)
+
+    #     #smooth out velocities with a moving average
+    #     states = np.array(states, dtype=np.float32)
+        
+    #     #plot x velocity after smoothing
+    #     states = torch.tensor(states).to('cuda')
+
+    #     #compute mean and std of images
+    #     rgbs = torch.stack(rgbs).float() / 255
+    #     depths = torch.stack(depths).float() / 255
+    #     rgb_mean = torch.mean(rgbs, dim=(0, 2, 3))
+    #     depth_mean = torch.mean(depths, dim=(0, 2, 3))
+    #     print(rgbs.shape)
+        
+    #     #compute std
+    #     rgb_std = torch.std(rgbs, dim=(0, 2, 3))
+    #     depth_std = torch.std(depths, dim=(0, 2, 3))
+    #     #normalize images
+    #     rgbs[:,0,:,:] = (rgbs[:,0,:,:] - rgb_mean[0]) / rgb_std[0]
+    #     rgbs[:,1,:,:] = (rgbs[:,1,:,:] - rgb_mean[0]) / rgb_std[1]
+    #     rgbs[:,2,:,:] = (rgbs[:,2,:,:] - rgb_mean[0]) / rgb_std[2]
+    #     depths = (depths - depth_mean) / depth_std
+
+    #     print('rgb mean: ', rgb_mean)
+    #     print('rgb std: ', rgb_std)
+    #     print('depth mean: ', depth_mean)
+    #     print('depth std: ', depth_std)
+    #     print('states mean: ', torch.mean(states, dim=0))
+    #     print('states std: ', torch.std(states, dim=0))
+
+    #     #normalize states
+    #     for i in range(6):
+    #         states[:, i] = (states[:, i] - torch.mean(states[:, i])) / torch.std(states[:, i])
+
+    #     return rgbs, depths, states
+    
+    # def __len__(self):
+    #     return len(self.states) // self.batch_size
+
+    # def __getitem__(self, idx):
+    #     #shuffle array index mapping
+    #     # if idx == 0:
+    #     np.random.shuffle(self.arrayIndicies)
+            
+    #     idx = idx * self.batch_size
+    #     desiredIndexes = self.arrayIndicies[idx:idx+self.batch_size]
+
+    #     rgb_img = []
+    #     depth_img = []
+    #     state = []
+        
+    #     for i in desiredIndexes:
+    #         rgb_img.append(self.rgb_images[i])
+    #         depth_img.append(self.depth_images[i])
+    #         state.append(self.states[i])
+
+    #     rgb_img = torch.stack(rgb_img)
+    #     depth_img = torch.stack(depth_img)
+    #     state = torch.stack(state)
+
+    #     return rgb_img, depth_img, state
 
 class DataPreprocessor():
     def __init__(self, rgb_mean, rgb_std, depth_mean, depth_std, state_mean, state_std):
@@ -279,86 +335,86 @@ class DataPreprocessor():
     
 
 #TODO: use this if necessary
-def loadDataset():
+# def loadDataset():
 
-  ## Read all the train and test images and flatten them for training and testing
-  train_path   = "./TrainData"
-  test_path    = "./TestData"
-  train_labels = os.listdir(train_path)
-  test_labels  = os.listdir(test_path) 
+#   ## Read all the train and test images and flatten them for training and testing
+#   train_path   = "./TrainData"
+#   test_path    = "./TestData"
+#   train_labels = os.listdir(train_path)
+#   test_labels  = os.listdir(test_path) 
 
-  image_size       = (64, 64)
-  num_train_images = 200
-  num_test_images  = 100
-  num_channels     = 3
+#   image_size       = (64, 64)
+#   num_train_images = 200
+#   num_test_images  = 100
+#   num_channels     = 3
 
-  train_x = np.zeros(((image_size[0]*image_size[1]*num_channels), num_train_images))
-  train_y = np.zeros((1, num_train_images))
-  test_x  = np.zeros(((image_size[0]*image_size[1]*num_channels), num_test_images))
-  test_y  = np.zeros((1, num_test_images))
+#   train_x = np.zeros(((image_size[0]*image_size[1]*num_channels), num_train_images))
+#   train_y = np.zeros((1, num_train_images))
+#   test_x  = np.zeros(((image_size[0]*image_size[1]*num_channels), num_test_images))
+#   test_y  = np.zeros((1, num_test_images))
 
-  #----------------
-  # TRAIN dataset
-  #----------------
-  count = 0
-  num_label = 0
-  for i, label in enumerate(train_labels):
-    cur_path = train_path + "/" + label
-    #print(glob.glob(cur_path + "/*.jpg"))
-    for image_path in glob.glob(cur_path + "/*.jpg"):
-      img = image.load_img(image_path, target_size=image_size)
-      #print(image_path)
-      x   = image.img_to_array(img)
-      x   = x.flatten()
-      x   = np.expand_dims(x, axis=0)
-      train_x[:,count] = x
-      train_y[:,count] = num_label
-      count += 1
-      #Read only 100 samples for each class for training 
-      if (count==99 or count==199):
-        break
-    num_label += 1
+#   #----------------
+#   # TRAIN dataset
+#   #----------------
+#   count = 0
+#   num_label = 0
+#   for i, label in enumerate(train_labels):
+#     cur_path = train_path + "/" + label
+#     #print(glob.glob(cur_path + "/*.jpg"))
+#     for image_path in glob.glob(cur_path + "/*.jpg"):
+#       img = image.load_img(image_path, target_size=image_size)
+#       #print(image_path)
+#       x   = image.img_to_array(img)
+#       x   = x.flatten()
+#       x   = np.expand_dims(x, axis=0)
+#       train_x[:,count] = x
+#       train_y[:,count] = num_label
+#       count += 1
+#       #Read only 100 samples for each class for training 
+#       if (count==99 or count==199):
+#         break
+#     num_label += 1
 
-  #--------------
-  # TEST dataset
-  #--------------
-  count = 0 
-  num_label = 0 
-  for i, label in enumerate(test_labels):
-    cur_path = test_path + "/" + label
-    for image_path in glob.glob(cur_path + "/*.jpg"):
-      img = image.load_img(image_path, target_size=image_size)
-      x   = image.img_to_array(img)
-      x   = x.flatten()
-      x   = np.expand_dims(x, axis=0)
-      test_x[:,count] = x
-      test_y[:,count] = num_label
-      count += 1
-    num_label += 1
+#   #--------------
+#   # TEST dataset
+#   #--------------
+#   count = 0 
+#   num_label = 0 
+#   for i, label in enumerate(test_labels):
+#     cur_path = test_path + "/" + label
+#     for image_path in glob.glob(cur_path + "/*.jpg"):
+#       img = image.load_img(image_path, target_size=image_size)
+#       x   = image.img_to_array(img)
+#       x   = x.flatten()
+#       x   = np.expand_dims(x, axis=0)
+#       test_x[:,count] = x
+#       test_y[:,count] = num_label
+#       count += 1
+#     num_label += 1
 
-  #------------------
-  # standardization
-  #------------------
-  train_x = train_x/255.
-  test_x  = test_x/255.
+#   #------------------
+#   # standardization
+#   #------------------
+#   train_x = train_x/255.
+#   test_x  = test_x/255.
 
 
-  ## Print the statistics of the data
-  print ("train_labels : " + str(train_labels))
-  print ("train_x shape: " + str(train_x.shape))
-  print ("train_y shape: " + str(train_y.shape))
-  print ("test_x shape : " + str(test_x.shape))
-  print ("test_y shape : " + str(test_y.shape))
+#   ## Print the statistics of the data
+#   print ("train_labels : " + str(train_labels))
+#   print ("train_x shape: " + str(train_x.shape))
+#   print ("train_y shape: " + str(train_y.shape))
+#   print ("test_x shape : " + str(test_x.shape))
+#   print ("test_y shape : " + str(test_y.shape))
 
-  #-----------------
-  # save using h5py
-  #-----------------
-  h5_train = h5py.File("train_x.h5", 'w')
-  h5_train.create_dataset("data_train", data=np.array(train_x))
-  h5_train.close()
+#   #-----------------
+#   # save using h5py
+#   #-----------------
+#   h5_train = h5py.File("train_x.h5", 'w')
+#   h5_train.create_dataset("data_train", data=np.array(train_x))
+#   h5_train.close()
 
-  h5_test = h5py.File("test_x.h5", 'w')
-  h5_test.create_dataset("data_test", data=np.array(test_x))
-  h5_test.close()
+#   h5_test = h5py.File("test_x.h5", 'w')
+#   h5_test.create_dataset("data_test", data=np.array(test_x))
+#   h5_test.close()
 
-  return train_x, train_y, test_x, test_y
+#   return train_x, train_y, test_x, test_y
