@@ -140,7 +140,7 @@ class VRDataLoader(Dataset):
             print(episode_number)
             episode_dir = os.path.join(data_dir, "episode-" + episode_number)
             episode_info_df = pd.read_csv( episode_dir + "/episode-" + episode_number +".csv")
-            episode_actions = episode_info_df["Action"].iloc[0:498].tolist() # Changed - by Sandra 10/04 - 7:13pm
+            episode_actions = episode_info_df["Action"].iloc[0:498]
             for j in range(number_of_samples_in_each_episode):
                 sample_number = str(j + 1)
                 if int(sample_number) < 10:
@@ -153,7 +153,7 @@ class VRDataLoader(Dataset):
 
                 rgb_image = torchvision.io.read_image(rgb_path)
                 rgbs.append(rgb_image)
-            actions = actions + episode_actions # Changed - by Sandra 10/04 - 7:13pm
+            actions.append(episode_actions)
 
         return rgbs, actions
     
@@ -332,89 +332,11 @@ class DataPreprocessor():
         for i in range(6):
             state[:, i] = (state[:, i] * self.state_std[i]) + self.state_mean[i]
         return state
+
+def main():
+    # Load data
     
+    return
 
-#TODO: use this if necessary
-# def loadDataset():
-
-#   ## Read all the train and test images and flatten them for training and testing
-#   train_path   = "./TrainData"
-#   test_path    = "./TestData"
-#   train_labels = os.listdir(train_path)
-#   test_labels  = os.listdir(test_path) 
-
-#   image_size       = (64, 64)
-#   num_train_images = 200
-#   num_test_images  = 100
-#   num_channels     = 3
-
-#   train_x = np.zeros(((image_size[0]*image_size[1]*num_channels), num_train_images))
-#   train_y = np.zeros((1, num_train_images))
-#   test_x  = np.zeros(((image_size[0]*image_size[1]*num_channels), num_test_images))
-#   test_y  = np.zeros((1, num_test_images))
-
-#   #----------------
-#   # TRAIN dataset
-#   #----------------
-#   count = 0
-#   num_label = 0
-#   for i, label in enumerate(train_labels):
-#     cur_path = train_path + "/" + label
-#     #print(glob.glob(cur_path + "/*.jpg"))
-#     for image_path in glob.glob(cur_path + "/*.jpg"):
-#       img = image.load_img(image_path, target_size=image_size)
-#       #print(image_path)
-#       x   = image.img_to_array(img)
-#       x   = x.flatten()
-#       x   = np.expand_dims(x, axis=0)
-#       train_x[:,count] = x
-#       train_y[:,count] = num_label
-#       count += 1
-#       #Read only 100 samples for each class for training 
-#       if (count==99 or count==199):
-#         break
-#     num_label += 1
-
-#   #--------------
-#   # TEST dataset
-#   #--------------
-#   count = 0 
-#   num_label = 0 
-#   for i, label in enumerate(test_labels):
-#     cur_path = test_path + "/" + label
-#     for image_path in glob.glob(cur_path + "/*.jpg"):
-#       img = image.load_img(image_path, target_size=image_size)
-#       x   = image.img_to_array(img)
-#       x   = x.flatten()
-#       x   = np.expand_dims(x, axis=0)
-#       test_x[:,count] = x
-#       test_y[:,count] = num_label
-#       count += 1
-#     num_label += 1
-
-#   #------------------
-#   # standardization
-#   #------------------
-#   train_x = train_x/255.
-#   test_x  = test_x/255.
-
-
-#   ## Print the statistics of the data
-#   print ("train_labels : " + str(train_labels))
-#   print ("train_x shape: " + str(train_x.shape))
-#   print ("train_y shape: " + str(train_y.shape))
-#   print ("test_x shape : " + str(test_x.shape))
-#   print ("test_y shape : " + str(test_y.shape))
-
-#   #-----------------
-#   # save using h5py
-#   #-----------------
-#   h5_train = h5py.File("train_x.h5", 'w')
-#   h5_train.create_dataset("data_train", data=np.array(train_x))
-#   h5_train.close()
-
-#   h5_test = h5py.File("test_x.h5", 'w')
-#   h5_test.create_dataset("data_test", data=np.array(test_x))
-#   h5_test.close()
-
-#   return train_x, train_y, test_x, test_y
+if __name__ == "__main__":
+    main()

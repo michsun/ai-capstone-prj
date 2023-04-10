@@ -4,8 +4,6 @@ from model import VRNet, VRDataLoader
 def data_preprocessing():
     return
 
-
-
 def train(epochs):
     model = VRNet()
     model.train()
