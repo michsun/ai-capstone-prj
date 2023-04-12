@@ -50,14 +50,13 @@ class SpatialSoftmax(torch.nn.Module):
 class VRNet(nn.Module):
     def __init__(self):
         super(VRNet, self).__init__()
-        # Convolution 1 160x120x4 -> 77x57x80
+        # Convolution 1 160x120x3 -> 77x57x64
         self.conv1_rgb = nn.Conv2d(3, 64, 7, padding='valid', stride=2)
-        self.conv1_depth = nn.Conv2d(1, 16, 7, padding='valid', stride=2) #TODO: Remove depth 
-        
-        # Convolution 2 77x57x80 -> 77x57x32
-        self.conv2 = nn.Conv2d(80, 32, 1, padding='same') #TODO: Adjust it
+
+        # Convolution 2 77x57x64 -> 77x57x32
+        self.conv2 = nn.Conv2d(64, 32, 1, padding='same')
         self.conv2_bn = nn.BatchNorm2d(32, eps=0.001, momentum=0.99)
-        # Convolution 3 77x57x43 -> 75x55x32
+        # Convolution 3 77x57x32 -> 75x55x32
         self.conv3 = nn.Conv2d(32, 32, 3, padding='valid')
         self.conv3_bn = nn.BatchNorm2d(32, eps=0.001, momentum=0.99)
         # Convolution 4 75x55x32 -> 73x53x32
@@ -76,14 +75,14 @@ class VRNet(nn.Module):
         self.fc2_bn = nn.BatchNorm1d(50, eps=0.001, momentum=0.99)
         self.fc3 = nn.Linear(50, 50)
         self.fc3_bn = nn.BatchNorm1d(50, eps=0.001, momentum=0.99)
-        self.fc4 = nn.Linear(50, 7) # Vx, Vy, Vz, Wx, Wy, Wz, grabber open
+        # self.fc4 = nn.Linear(50, 7) # Vx, Vy, Vz, Wx, Wy, Wz, grabber open
+        self.fc4 = nn.Linear(50, 5) 
 
         #set conv1_rgb weights to be first layer from pretrained model
         googlenet = torchvision.models.googlenet(pretrained=True)
         self.conv1_rgb.weight.data = googlenet.conv1.conv.weight.data
 
         #weights should be uniformly sampled from [-0.1, 0.1]
-        self.conv1_depth.weight.data.uniform_(-0.1, 0.1) #TODO: check this
         self.conv2.weight.data.uniform_(-0.1, 0.1)
         self.conv3.weight.data.uniform_(-0.1, 0.1)
         self.conv4.weight.data.uniform_(-0.1, 0.1)
@@ -95,9 +94,7 @@ class VRNet(nn.Module):
 
     def forward(self, rgbImg, depthImg):
         #conv layers
-        x_rgb = F.relu(self.conv1_rgb(rgbImg))
-        x_depth = F.relu(self.conv1_depth(depthImg)) # TODO: remove depth image
-        x = torch.cat((x_rgb, x_depth), 1)
+        x = F.relu(self.conv1_rgb(rgbImg))
         
         #implement convulutional layers with batch normalization
         x = F.relu(self.conv2(x))
@@ -120,7 +117,7 @@ class VRDataLoader(Dataset):
         # self.startRun = startRun
         # self.lastRun = lastRun
         self.batch_size = batch_size
-        self.rgb_images, self.states = self.load_data()
+        self.rgb_images, self.actions = self.load_data() # Changed - Sandra 10/04 - 7:50pm states to actions
         # self.rgb_images, self.depth_images, self.states = self.load_data()
         # self.arrayIndicies = list([i for i in range(len(self.rgb_images))])
         # print(len(self.rgb_images), len(self.depth_images), len(self.states))
@@ -158,7 +155,7 @@ class VRDataLoader(Dataset):
         return rgbs, actions
     
     def __len__(self):
-        return len(self.states) // self.batch_size
+        return len(self.actions) // self.batch_size # changed - Sandra - states to actions
 
     def __getitem__(self, idx):
         #shuffle array index mapping
@@ -169,16 +166,16 @@ class VRDataLoader(Dataset):
         desiredIndexes = self.arrayIndicies[idx:idx+self.batch_size]
 
         rgb_img = []
-        state = []
+        action = []
         
         for i in desiredIndexes:
             rgb_img.append(self.rgb_images[i])
-            state.append(self.states[i])
+            action.append(self.actions[i])
 
         rgb_img = torch.stack(rgb_img)
-        state = torch.stack(state)
+        action = torch.stack(action)
 
-        return rgb_img, state
+        return rgb_img, action
     
     # def _datloada(self):
     #     rgbs = []

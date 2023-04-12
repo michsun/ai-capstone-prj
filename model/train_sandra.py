@@ -20,8 +20,6 @@ class LcLoss(nn.Module):
         
         return torch.sum(loss)
 
-
-
 def data_preprocessing():
     return
 

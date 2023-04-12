@@ -47,6 +47,7 @@ class SpatialSoftmax(torch.nn.Module):
         return feature_keypoints
 
 #Implementation of Network from Figure 3 (on pg 4) of paper
+# Modified to only take rgb values
 class VRNet(nn.Module):
     def __init__(self):
         super(VRNet, self).__init__()
@@ -75,7 +76,8 @@ class VRNet(nn.Module):
         self.fc2_bn = nn.BatchNorm1d(50, eps=0.001, momentum=0.99)
         self.fc3 = nn.Linear(50, 50)
         self.fc3_bn = nn.BatchNorm1d(50, eps=0.001, momentum=0.99)
-        self.fc4 = nn.Linear(50, 7) # Vx, Vy, Vz, Wx, Wy, Wz, grabber open
+        # self.fc4 = nn.Linear(50, 7) # Vx, Vy, Vz, Wx, Wy, Wz, grabber open
+        self.fc4 = nn.Linear(50, 5) 
 
         #set conv1_rgb weights to be first layer from pretrained model
         googlenet = torchvision.models.googlenet(pretrained=True)
