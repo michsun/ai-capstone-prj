@@ -5,7 +5,6 @@ import torch.optim as optim
 
 # Sandra - 10/04 7:45pm
 
-
 # create custom Lc loss function
 class LcLoss(nn.Module):
     def __init__(self):
