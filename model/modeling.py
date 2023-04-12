@@ -201,29 +201,12 @@ class DataPreprocessor():
     def __init__(self, rgb_mean, rgb_std):
         self.rgb_mean = rgb_mean
         self.rgb_std = rgb_std
-        # self.depth_mean = depth_mean
-        # self.depth_std = depth_std
-        # self.state_mean = state_mean
-        # self.state_std = state_std
 
     def normalizeRgb(self, rgb):
         rgb[:,0,:,:] = (rgb[:,0,:,:] - self.rgb_mean[0]) / self.rgb_std[0]
         rgb[:,1,:,:] = (rgb[:,1,:,:] - self.rgb_mean[1]) / self.rgb_std[1]
         rgb[:,2,:,:] = (rgb[:,2,:,:] - self.rgb_mean[2]) / self.rgb_std[2]
         return rgb
-    
-    # def normalizeDepth(self, depth):
-    #     return (depth - self.depth_mean) / self.depth_std
-    
-    # def normalizeState(self, state):
-    #     for i in range(6):
-    #         state[:, i] = (state[:, i] - self.state_mean[i]) / self.state_std[i]
-    #     return state
-    
-    # def denormalizeState(self, state):
-    #     for i in range(6):
-    #         state[:, i] = (state[:, i] * self.state_std[i]) + self.state_mean[i]
-    #     return state
 
 if __name__ == "__main__":
     # Test Data Loader
