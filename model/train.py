@@ -25,7 +25,7 @@ class LcLoss(nn.Module):
         return torch.sum(loss)
 
 
-def train(data_loader, num_epochs:int, learning_rate:float, model_name:str, optimizer:str="adam", loss_function:str="bce"):
+def train(data_loader, num_epochs:int, learning_rate:float, batch_size:int, model_name:str, optimizer:str="adam", loss_function:str="bce"):
     OPTIMIZERS = ["adam", "sgd"]
     LOSS_FUNCTIONS = [ "bce", "l1", "l2", "lc", "lg" ]
     assert(optimizer in OPTIMIZERS)
@@ -37,6 +37,7 @@ def train(data_loader, num_epochs:int, learning_rate:float, model_name:str, opti
         "num_epochs": num_epochs,
         "learning_rate": learning_rate,
         "optimizer": optimizer, 
+        "batch_size": batch_size
     }
     
     # Initialise model
@@ -130,11 +131,11 @@ if __name__ == "__main__":
     data_dir = "data\simulated-samples"
     data_loader = DataLoader(data_dir=data_dir, episode_list=list(range(5)), samples=499)
     
-    model_name = "model-23-04-16-v4"
+    model_name = "model_ep-50_lr-1e-05_bs-4"
     # Train the model and save the training history (loss info)
-    model_history = train(data_loader, num_epochs=50, learning_rate=0.000005, model_name=model_name)
+    model_history = train(data_loader, num_epochs=50, learning_rate=1e-05, batch_size=4, model_name=model_name)
     
-    # Pickel model history
+    # Pickle model history
     with open(model_name + '.pkl', 'wb') as f:
         pickle.dump(model_history, f)
     

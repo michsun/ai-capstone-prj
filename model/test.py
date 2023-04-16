@@ -32,10 +32,11 @@ def get_accuracy(model_path):
     else:
         print("Using CPU")
         device = torch.device('cpu')
-
+    
+    # device = torch.device('cpu')
     loaded_model.load_state_dict(torch.load(model_path, map_location=device))
 
-    loaded_model.to(device)
+    loaded_model.to(device) # move model to GPU
 
     if(loaded_model == None):
         raise("Loaded model is empty")
@@ -50,7 +51,6 @@ def get_accuracy(model_path):
         target_action = action.to(device).float()
         
         output = loaded_model(rgb_img)
-
         # Apply sigmoid activation
         predicted_probs = torch.sigmoid(output)
         predicted_action = (predicted_probs > 0.5).float()
@@ -63,9 +63,9 @@ def get_accuracy(model_path):
     accuracy = (correct_number_of_predictions/num_of_predictions) * 100 
     return accuracy
 
-def loss_graph(history, figsize=(8,6)):
+def loss_graph(history, figsize=(8,5)):
     loss = history['loss']
-
+    
     plt.figure(figsize=figsize)
     plt.plot(loss)
     plt.title('Loss')
@@ -78,13 +78,15 @@ def loss_graph(history, figsize=(8,6)):
 if __name__ == "__main__":
     
     # Load pickle file
-    model_name = "model-23-04-16-v4"
+    model_name = "model_ep-50_lr-1e-05_bs-4"
     
     # Load history from file_name
     with open(model_name + ".pkl", 'rb') as f:
         history = pickle.load(f)
     
+    print("Final training loss: ", history["loss"][-1])
     print("Settings:", history["config"])
+
     accuracy = get_accuracy(model_path=(model_name + ".pth"))
     print("Accuracy:", accuracy)
     # Plot loss graph

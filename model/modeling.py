@@ -10,6 +10,8 @@ import pandas as pd
 
 from typing import List
 
+SEED = 101
+
 ## SpatialSoftmax implementation taken from https://gist.github.com/jeasinema/1cba9b40451236ba2cfb507687e08834
 class SpatialSoftmax(torch.nn.Module):
     def __init__(self, height, width, channel, temperature=None, data_format='NCHW'):
@@ -52,7 +54,7 @@ class VRNet(nn.Module):
     def __init__(self):
         super(VRNet, self).__init__()
         # Convolution 1 160x120x3 -> 77x57x64
-        # self.conv1_rgb = nn.Conv2d(3, 64, 7, padding='valid', stride=2)
+        # self.conv1_rgb = nn.Conv2d(3, 64, 7, padhistory = load_pickle(m1 + ".pkl")ding='valid', stride=2)
         self.conv1_rgb = nn.Conv2d(3, 64, 7, padding='valid', stride=2)
 
         # Convolution 2 77x57x64 -> 77x57x32
@@ -229,6 +231,7 @@ class DataLoader(Dataset):
     def __getitem__(self, idx):
         #shuffle array index mapping
         # if idx == 0:
+        np.random.seed(SEED)
         np.random.shuffle(self.arrayIndicies)
             
         idx = idx * self.batch_size
