@@ -25,8 +25,21 @@ class LcLoss(nn.Module):
         return torch.sum(loss)
 
 
-def train(data_loader, num_epochs, learning_rate, model_name):
+def train(data_loader, num_epochs:int, learning_rate:float, model_name:str, optimizer:str="adam", loss_function:str="bce"):
+    OPTIMIZERS = ["adam", "sgd"]
+    LOSS_FUNCTIONS = [ "bce", "l1", "l2", "lc", "lg" ]
+    assert(optimizer in OPTIMIZERS)
+    assert(loss_function in LOSS_FUNCTIONS)
     
+    # Initialize history dictionary
+    history = {}
+    history["config"] = {
+        "num_epochs": num_epochs,
+        "learning_rate": learning_rate,
+        "optimizer": optimizer, 
+    }
+    
+    # Initialise model
     model = VRNet()
 
     # Set GPU if available
@@ -38,29 +51,38 @@ def train(data_loader, num_epochs, learning_rate, model_name):
         print("Using CPU: WARNING - this will take a long time!")
         device = torch.device("cpu")
 
-    model.train()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0.0001)
-    # optimizer = optim.SGD(model.parameters(), lr=learning_rate)
-
-    L1_loss = nn.L1Loss()
-    L2_loss = nn.MSELoss()
-    # Lc loss encourages directional alignment between output and target
-    # should be used if the direction is more important than the magnitude
-    L_c_loss = LcLoss()
-    # Sigmoid cross entropy loss that can be used to train for outputs like {0,1}
-    # was known as Lg loss function in code and paper
-    # L_g_loss = nn.CrossEntropyLoss() 
-
-    loss_function = nn.BCEWithLogitsLoss()
+    model.train() 
     
-    history = { "loss":[] }
+    # Sets optimizer
+    if optimizer == "adam":
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0.0001)
+    elif optimizer == "sgd":
+        optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+    
+    # Sets loss function
+    if loss_function == "bce":
+        loss_function = nn.BCEWithLogitsLoss()
+    elif loss_function == "l1":
+        loss_function = nn.L1Loss()
+    elif loss_function == "l2":
+        loss_function = nn.MSELoss()
+    elif loss_function == "lc":
+        # Lc loss encourages directional alignment between output and target
+        # should be used if the direction is more important than the magnitude
+        loss_function = LcLoss()
+    elif loss_function == "lg":
+        # Sigmoid cross entropy loss that can be used to train for outputs like {0,1}
+        # was known as Lg loss function in code and paper
+        # L_g_loss = nn.CrossEntropyLoss() 
+        loss_function = nn.CrossEntropyLoss()
+
+    history["loss"] = []
     for epoch in tqdm(range(num_epochs)):
         for i in range(len(data_loader)):
             rgb_img, action = data_loader[i]
-
-            #get rgb and depth images
+            
+            # get rgb images
             rgb_img = rgb_img.to(device).float()
-            # depth_img = depth_img.to(device).float()
             
             #apply data augmentation
             # rgb_img, depth_img = applyTransforms(rgb_img, depth_img)
@@ -69,7 +91,7 @@ def train(data_loader, num_epochs, learning_rate, model_name):
             target_action = action.to(device).float()
 
             optimizer.zero_grad()
-            # predicted_action = model(rgb_img, depth_img)
+            
             predicted_action = model(rgb_img)
             
             # print(f"predicted_action shape: {predicted_action.shape}")
@@ -99,20 +121,21 @@ def train(data_loader, num_epochs, learning_rate, model_name):
     # Save model
     torch.save(model.state_dict(), model_name+'.pth')
 
+    return history
+
 # END - Sandra - 10/04 7:45pm
 
 if __name__ == "__main__":
 
     data_dir = "data\simulated-samples"
-    data_loader = DataLoader(data_dir=data_dir, episodes=5, samples=499)
+    data_loader = DataLoader(data_dir=data_dir, episode_list=list(range(5)), samples=499)
     
-    model_name = "model-23-04-13"
+    model_name = "model-23-04-16-v4"
     # Train the model and save the training history (loss info)
-    model_history = train(data_loader, num_epochs=500, learning_rate=0.0005, model_name=model_name)
+    model_history = train(data_loader, num_epochs=50, learning_rate=0.000005, model_name=model_name)
     
     # Pickel model history
-    with open(model_name+'.pkl', 'wb') as f:
+    with open(model_name + '.pkl', 'wb') as f:
         pickle.dump(model_history, f)
-
-
+    
     

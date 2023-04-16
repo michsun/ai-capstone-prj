@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib as plt
 import pandas as pd
 
+from typing import List
 
 ## SpatialSoftmax implementation taken from https://gist.github.com/jeasinema/1cba9b40451236ba2cfb507687e08834
 class SpatialSoftmax(torch.nn.Module):
@@ -51,6 +52,7 @@ class VRNet(nn.Module):
     def __init__(self):
         super(VRNet, self).__init__()
         # Convolution 1 160x120x3 -> 77x57x64
+        # self.conv1_rgb = nn.Conv2d(3, 64, 7, padding='valid', stride=2)
         self.conv1_rgb = nn.Conv2d(3, 64, 7, padding='valid', stride=2)
 
         # Convolution 2 77x57x64 -> 77x57x32
@@ -77,7 +79,7 @@ class VRNet(nn.Module):
         self.fc3 = nn.Linear(50, 50)
         self.fc3_bn = nn.BatchNorm1d(50, eps=0.001, momentum=0.99)
         # self.fc4 = nn.Linear(50, 7) # Vx, Vy, Vz, Wx, Wy, Wz, grabber open
-        self.fc4 = nn.Linear(50, 1) 
+        self.fc4 = nn.Linear(50, 1)
 
         #set conv1_rgb weights to be first layer from pretrained model
         googlenet = torchvision.models.googlenet(pretrained=True)
@@ -93,32 +95,73 @@ class VRNet(nn.Module):
         self.fc3.weight.data.uniform_(-0.1, 0.1)
         self.fc4.weight.data.uniform_(-0.1, 0.1)
 
+
+    # ADDED by Sandra # 20230314 - uses the batch normalization:
     def forward(self, rgbImg):
-        #conv layers
-        x = F.relu(self.conv1_rgb(rgbImg))
 
-        #implement convulutional layers with batch normalization
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
-        x = F.relu(self.conv4(x))  
+        # Convolution 1 160x120x3 -> 77x57x64
+        x = self.conv1_rgb(rgbImg)
+        x = F.relu(x)
 
+        # print_output("conv1_rgb_shape: " + str(x.shape))
+        # print("conv1_rgb_shape:", x.shape)
+
+        # Convolution 2 77x57x64 -> 77x57x32
+        # x = self.conv2_bn(self.conv2(x))
+        # x = F.relu(self.conv2_bn(x))
+        x = self.conv2(x)
+        # print_output("conv2_shape: " + str(x.shape))
+        x = F.relu(self.conv2_bn(x))
+        # print_output("conv2_bn_shape: " + str(x.shape))
+
+        # Convolution 3 77x57x32 -> 75x55x32
+        x = self.conv3(x)
+        # print_output("conv3_shape: " + str(x.shape))
+        x = F.relu(self.conv3_bn(x))
+        # print_output("conv3_bn_shape: " + str(x.shape))
+
+        # Convolution 4 75x55x32 -> 73x53x32
+        # x = self.conv4(x)
+        # x = F.relu(self.conv4_bn(x))
+        x = self.conv4(x)
+        # print_output("conv4_shape: " + str(x.shape))
+        x = F.relu(self.conv4_bn(x))
+        # print_output("conv4_bn_shape:"+ str(x.shape))
+
+        # spatial softmax
         x = self.spatialSoftmax(x)
-        x = self.flatten(x)
+        # print_output("spatialSoftmax_shape:"+ str(x.shape))
+        
 
-        #fully connected layers
+        x = self.flatten(x)
+        # print_output("flatten_shape:" + str(x.shape))
+
+        # Fully connected layers
         x = F.relu(self.fc1(x))
+        # print_output("fc1_shape:" + str(x.shape))
+        # x = F.relu(self.fc1_bn(x))
+        # print_output("fc1_bn_shape:" + x.shape)
         x = F.relu(self.fc2(x))
+        # print_output("fc2_shape:" + str(x.shape))
+        # x = F.relu(self.fc2_bn(x))
+        # print_output("fc2_bn_shape:" + str(x.shape))
         x = F.relu(self.fc3(x))
+        # print_output("fc3_shape:" + str(x.shape))
+        # x = F.relu(self.fc3_bn(x))
+        # print_output("fc3_bn_shape:" + str(x.shape))
+
+        # Output layer
         x = self.fc4(x)
+        # print_output("fc4_shape:" + str(x.shape))
+
         return x
+
 
 class DataLoader(Dataset):
 
-    def __init__(self, data_dir: str, episodes: int, samples: int, batch_size=1):
+    def __init__(self, data_dir: str, episode_list: List, samples: int, batch_size=1):
         self.data_dir = data_dir
-        # self.startRun = startRun
-        # self.lastRun = lastRun
-        self.episodes = episodes # number of episodes
+        self.episode_list = episode_list # number of episodes
         self.samples = samples # number of samples in each episode
         self.batch_size = batch_size
         self.rgb_images, self.actions = self.load_data() # Changed - Sandra 10/04 - 7:50pm states to actions
@@ -134,7 +177,7 @@ class DataLoader(Dataset):
         rgbs = []
         actions = []
         
-        for i in range(self.episodes):
+        for i in self.episode_list:
             episode_number = str(i)
             print(f"Loading episode {episode_number}")
 
@@ -162,13 +205,22 @@ class DataLoader(Dataset):
         rgbs = torch.stack(rgbs).float() / 255
         rgb_mean = torch.mean(rgbs, dim=(0, 2, 3))
         
-        #compute std
-        rgb_std = torch.std(rgbs, dim=(0, 2, 3))
-        #normalize images
+        # #compute std
+        # rgb_std = torch.std(rgbs, dim=(0, 2, 3))
+        # #normalize images
+        # rgbs[:,0,:,:] = (rgbs[:,0,:,:] - rgb_mean[0]) / rgb_std[0]
+        # rgbs[:,1,:,:] = (rgbs[:,1,:,:] - rgb_mean[0]) / rgb_std[1]
+        # rgbs[:,2,:,:] = (rgbs[:,2,:,:] - rgb_mean[0]) / rgb_std[2]
+
+        # Modified by Sandra - 20230413 - to ensure data does not contain nan or infinite values
+        epsilon = 1e-6
+        rgb_std = torch.std(rgbs, dim=(0, 2, 3)) + epsilon
+        # rgb_std = torch.std(rgbs, dim=(0, 2, 3))
         rgbs[:,0,:,:] = (rgbs[:,0,:,:] - rgb_mean[0]) / rgb_std[0]
         rgbs[:,1,:,:] = (rgbs[:,1,:,:] - rgb_mean[0]) / rgb_std[1]
         rgbs[:,2,:,:] = (rgbs[:,2,:,:] - rgb_mean[0]) / rgb_std[2]
-
+        #-------
+        
         return rgbs, actions
     
     def __len__(self):
@@ -206,7 +258,14 @@ class DataPreprocessor():
         rgb[:,0,:,:] = (rgb[:,0,:,:] - self.rgb_mean[0]) / self.rgb_std[0]
         rgb[:,1,:,:] = (rgb[:,1,:,:] - self.rgb_mean[1]) / self.rgb_std[1]
         rgb[:,2,:,:] = (rgb[:,2,:,:] - self.rgb_mean[2]) / self.rgb_std[2]
+
         return rgb
+
+
+def print_output(string):
+    with open("output.txt", "a") as f:
+        f.write(string + '\n')
+
 
 if __name__ == "__main__":
     # Test Data Loader
@@ -216,3 +275,4 @@ if __name__ == "__main__":
                              samples = 499
     )
     
+

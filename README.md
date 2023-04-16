@@ -12,7 +12,9 @@ pip install -r requirements.txt
 ```
 <br>
 
-### Installing and activating a virtual environment using virtualenv
+### Installing and activating a virtual environment using virtu
+
+alenv
 
 Virtualenv is a Python tool that allows you to create isolated environments for your Python projects. 
 
