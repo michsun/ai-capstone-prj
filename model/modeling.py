@@ -161,13 +161,14 @@ class VRNet(nn.Module):
 
 class DataLoader(Dataset):
 
-    def __init__(self, data_dir: str, episode_list: List, samples: int, batch_size=1):
+    def __init__(self, data_dir: str, episode_list: List, samples: int, batch_size=1, indices=None):
         self.data_dir = data_dir
         self.episode_list = episode_list # number of episodes
         self.samples = samples # number of samples in each episode
         self.batch_size = batch_size
         self.rgb_images, self.actions = self.load_data() # Changed - Sandra 10/04 - 7:50pm states to actions
-        self.arrayIndicies = list([i for i in range(len(self.rgb_images))])
+        # self.arrayIndicies = list([i for i in range(len(self.rgb_images))])
+        self.arrayIndicies = indices if indices is not None else list(range(len(self.rgb_images)))
         print(len(self.rgb_images), len(self.actions))
         assert(len(self.rgb_images) == len(self.actions))
     
@@ -251,6 +252,21 @@ class DataLoader(Dataset):
         action = action.view(1, -1) 
 
         return rgb_img, action
+    
+def split_data_loader(data_loader: DataLoader, val_split: float):
+    train_split = int((1 - val_split) * len(data_loader))
+    indices = np.arange(len(data_loader))
+    np.random.seed(SEED)
+    np.random.shuffle(indices)
+    train_indices = indices[:train_split]
+    val_indices = indices[train_split:]
+
+    train_data_loader = data_loader
+    train_data_loader.arrayIndices = train_indices
+    val_data_loader = data_loader 
+    val_data_loader.arrayIndices = val_indices
+    
+    return train_data_loader, val_data_loader
     
 class DataPreprocessor():
     def __init__(self, rgb_mean, rgb_std):

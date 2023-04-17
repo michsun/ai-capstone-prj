@@ -23,7 +23,7 @@ from modeling import DataLoader, VRNet
 
 def get_accuracy(model_path):
     data_dir = "data/simulated-samples"
-    data_loader = DataLoader(data_dir=data_dir, episode_list=[5,6], samples=499)
+    data_loader = DataLoader(data_dir=data_dir, episode_list=list(range(7)), samples=499)
     
     loaded_model = VRNet()
     if torch.cuda.is_available():
@@ -64,7 +64,7 @@ def get_accuracy(model_path):
     return accuracy
 
 def loss_graph(history, figsize=(8,5)):
-    loss = history['loss']
+    loss = history['train_loss']
     
     plt.figure(figsize=figsize)
     plt.plot(loss)
@@ -78,13 +78,21 @@ def loss_graph(history, figsize=(8,5)):
 if __name__ == "__main__":
     
     # Load pickle file
-    model_name = "model_ep-50_lr-1e-05_bs-4"
+    # model_name = "model_ep-50_lr-5e-05_bs-4"
+
+    EPOCHS = 50
+    LEARNING_RATE = 1e-05
+    BATCH_SIZE = 4
+    OPTIMIZER = "adam"
+    LOSS_FUNCTION = "bce"
     
+    model_name = f"model_ep-{EPOCHS}_lr-{str(LEARNING_RATE)}_bs-{BATCH_SIZE}_opt-{OPTIMIZER}_loss-{LOSS_FUNCTION}"
+
     # Load history from file_name
     with open(model_name + ".pkl", 'rb') as f:
         history = pickle.load(f)
     
-    print("Final training loss: ", history["loss"][-1])
+    print("Final training loss: ", history["train_loss"][-1])
     print("Settings:", history["config"])
 
     accuracy = get_accuracy(model_path=(model_name + ".pth"))

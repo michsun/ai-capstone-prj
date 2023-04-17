@@ -1,12 +1,13 @@
 import datetime
 import pickle
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
 from tqdm import tqdm
 
-from modeling import VRNet, DataLoader
+from modeling import VRNet, DataLoader, split_data_loader
 
 # Sandra - 10/04 7:45pm
 
@@ -25,7 +26,33 @@ class LcLoss(nn.Module):
         return torch.sum(loss)
 
 
-def train(data_loader, num_epochs:int, learning_rate:float, batch_size:int, model_name:str, optimizer:str="adam", loss_function:str="bce"):
+def get_accuracy(model, data_loader, device):
+
+    num_of_predictions = 0
+    correct_number_of_predictions = 0
+
+    for i in range(len(data_loader)):
+        rgb_img, action = data_loader[i]
+
+        rgb_img = rgb_img.to(device).float()
+        target_action = action.to(device).float()
+        
+        output = model(rgb_img)
+        # Apply sigmoid activation
+        predicted_probs = torch.sigmoid(output)
+        predicted_action = (predicted_probs > 0.5).float()
+
+        if torch.equal(predicted_action, target_action):
+            correct_number_of_predictions += 1
+    
+        num_of_predictions += 1
+
+    accuracy = correct_number_of_predictions / num_of_predictions
+    return accuracy
+
+
+def train(train_data_loader, val_data_loader, num_epochs:int, learning_rate:float, batch_size:int, model_name:str, 
+          optimizer:str="adam", loss_function:str="bce"):
     OPTIMIZERS = ["adam", "sgd"]
     LOSS_FUNCTIONS = [ "bce", "l1", "l2", "lc", "lg" ]
     assert(optimizer in OPTIMIZERS)
@@ -76,11 +103,11 @@ def train(data_loader, num_epochs:int, learning_rate:float, batch_size:int, mode
         # was known as Lg loss function in code and paper
         # L_g_loss = nn.CrossEntropyLoss() 
         loss_function = nn.CrossEntropyLoss()
-
-    history["loss"] = []
+    
+    history["train_acc"], history["train_loss"], history["val_acc"], history["val_loss"] = [], [], [], []
     for epoch in tqdm(range(num_epochs)):
-        for i in range(len(data_loader)):
-            rgb_img, action = data_loader[i]
+        for i in range(len(train_data_loader)):
+            rgb_img, action = train_data_loader[i]
             
             # get rgb images
             rgb_img = rgb_img.to(device).float()
@@ -111,14 +138,33 @@ def train(data_loader, num_epochs:int, learning_rate:float, batch_size:int, mode
             # loss = L1_loss(predicted_action, target_action) # * loss_weights[1]
             # loss += L_c_loss(output[:, 0:6], state[:, 0:6]) * loss_weights[2]
             # loss += L_g_loss(output[:, 6], state[:, 6]) * loss_weights[3]
-            loss = loss_function(predicted_action, target_action)
+            train_loss = loss_function(predicted_action, target_action)
             
-            loss.backward()
+            train_loss.backward()
             optimizer.step()
         
-        history['loss'].append(loss.item())
-        print(f'Epoch: {epoch+1}/{num_epochs}, Iteration: {i}, Loss: {loss.item()}')
-    
+        train_acc = get_accuracy(model, train_data_loader, device)
+
+        # val_acc = get_accuracy(model, val_data_loader, device)
+        
+        # Calculate validation loss
+        # val_loss = 0
+        # for i in range(len(val_data_loader)):
+        #     rgb_img, action = val_data_loader[i]
+        #     rgb_img = rgb_img.to(device).float()
+        #     target_action = action.to(device).float()
+        #     output = model(rgb_img)
+        #     val_loss += loss_function(output, target_action)
+        #     del rgb_img, output, target_action
+        # val_loss /= len(val_data_loader)
+
+        history['train_acc'].append(train_acc)
+        history['train_loss'].append(train_loss.item())
+        # history['val_acc'].append(val_acc)
+        # history['val_loss'].append(val_loss.item())
+
+        print(f'Epoch: {epoch+1}/{num_epochs}, train_acc: {train_acc}, train_loss: {train_loss.item()}')
+
     # Save model
     torch.save(model.state_dict(), model_name+'.pth')
 
@@ -128,12 +174,35 @@ def train(data_loader, num_epochs:int, learning_rate:float, batch_size:int, mode
 
 if __name__ == "__main__":
 
-    data_dir = "data\simulated-samples"
-    data_loader = DataLoader(data_dir=data_dir, episode_list=list(range(5)), samples=499)
     
-    model_name = "model_ep-50_lr-1e-05_bs-4"
+    EPOCHS = 50
+    LEARNING_RATE = 5e-06
+    BATCH_SIZE = 4
+    OPTIMIZER = "adam"
+    LOSS_FUNCTION = "bce"
+    
+    model_name = f"model_ep-{EPOCHS}_lr-{str(LEARNING_RATE)}_bs-{BATCH_SIZE}_opt-{OPTIMIZER}_loss-{LOSS_FUNCTION}"
+    
+    data_dir = "data\simulated-samples"
+    # data_loader = DataLoader(data_dir=data_dir, episodes=7, samples=499)
+    train_data_loader = DataLoader(data_dir=data_dir, episode_list=list(range(7)), samples=499)
+    val_data_loader = DataLoader(data_dir=data_dir, episode_list=[5,6], samples=499)
+
+    # train_data_loader, val_data_loader = split_data_loader(data_loader, val_split=0.2)
+    
+    # Delete data loader to free up memory
+    # del data_loader
+    
+    print(len(train_data_loader), len(val_data_loader))
+
     # Train the model and save the training history (loss info)
-    model_history = train(data_loader, num_epochs=50, learning_rate=1e-05, batch_size=4, model_name=model_name)
+    model_history = train(train_data_loader, val_data_loader,
+                          num_epochs=EPOCHS, 
+                          learning_rate=LEARNING_RATE, 
+                          batch_size=BATCH_SIZE,
+                          optimizer=OPTIMIZER,
+                          loss_function=LOSS_FUNCTION,
+                          model_name=model_name)
     
     # Pickle model history
     with open(model_name + '.pkl', 'wb') as f:
