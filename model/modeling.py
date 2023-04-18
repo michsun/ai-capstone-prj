@@ -220,8 +220,8 @@ class DataLoader(Dataset):
         rgb_std = torch.std(rgbs, dim=(0, 2, 3)) + epsilon
         # rgb_std = torch.std(rgbs, dim=(0, 2, 3))
         rgbs[:,0,:,:] = (rgbs[:,0,:,:] - rgb_mean[0]) / rgb_std[0]
-        rgbs[:,1,:,:] = (rgbs[:,1,:,:] - rgb_mean[0]) / rgb_std[1]
-        rgbs[:,2,:,:] = (rgbs[:,2,:,:] - rgb_mean[0]) / rgb_std[2]
+        rgbs[:,1,:,:] = (rgbs[:,1,:,:] - rgb_mean[1]) / rgb_std[1]
+        rgbs[:,2,:,:] = (rgbs[:,2,:,:] - rgb_mean[2]) / rgb_std[2]
         #-------
         
         return rgbs, actions
@@ -284,7 +284,6 @@ class DataPreprocessor():
 def print_output(string):
     with open("output.txt", "a") as f:
         f.write(string + '\n')
-
 
 if __name__ == "__main__":
     # Test Data Loader
