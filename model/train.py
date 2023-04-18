@@ -173,7 +173,6 @@ def train(train_data_loader, val_data_loader, num_epochs:int, learning_rate:floa
 # END - Sandra - 10/04 7:45pm
 
 if __name__ == "__main__":
-
     
     EPOCHS = 50
     LEARNING_RATE = 5e-06
