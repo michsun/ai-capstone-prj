@@ -1,9 +1,14 @@
 # Python
 */__pycache__
 */.ipynb_checkpoints
+.ipynb_checkpoints/*
+.pytest_cache/*
 __pycache__/*
 
 # Folders
 env/*
 */.DS_Store
 .DS_Store
+.vscode
+
+data/old/*/
