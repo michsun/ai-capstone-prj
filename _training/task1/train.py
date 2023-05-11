@@ -1,10 +1,15 @@
 import datetime
-import pickle
 import numpy as np
+import os
+import pickle
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
+from sklearn.model_selection import ParameterGrid
+from skopt import gp_minimize
+from skopt.space import Real, Integer, Categorical
+from skopt.utils import use_named_args
 from tqdm import tqdm
 
 from modeling import VRNet, DataLoader, split_data_loader
@@ -51,12 +56,32 @@ def get_accuracy(model, data_loader, device):
     return accuracy
 
 
-def train(train_data_loader, val_data_loader, num_epochs:int, learning_rate:float, batch_size:int, model_name:str, 
-          optimizer:str="adam", loss_function:str="bce"):
+def train(train_data_loader, val_data_loader, num_epochs:int, learning_rate:float, batch_size:int,
+          optimizer:str="adam", loss_function:str="bce",
+          save_path:str="models/", model_name:str="model"):
+    """
+    Trains the model for num_epochs epochs, using the given learning rate, batch size, optimizer and loss function.
+    Saves the model after each epoch, and saves the training and validation loss and accuracy after each epoch.
+
+    Args:
+        train_data_loader: DataLoader object for the training data
+        val_data_loader: DataLoader object for the validation data
+        num_epochs: number of epochs to train for
+        learning_rate: learning rate to use for training
+        batch_size: batch size to use for training
+        model_name: name of the model to save
+        optimizer: optimizer to use for training
+        loss_function: loss function to use for training
+    
+    Returns:
+        history: dictionary containing the training and validation loss and accuracy for each epoch
+    """
     OPTIMIZERS = ["adam", "sgd"]
     LOSS_FUNCTIONS = [ "bce", "l1", "l2", "lc", "lg" ]
     assert(optimizer in OPTIMIZERS)
     assert(loss_function in LOSS_FUNCTIONS)
+    
+    model_name = f"{model_name}_ep-{num_epochs}_lr-{learning_rate}_bs-{batch_size}_opt-{optimizer}_loss-{loss_function}"
     
     # Initialize history dictionary
     history = {}
@@ -64,7 +89,8 @@ def train(train_data_loader, val_data_loader, num_epochs:int, learning_rate:floa
         "num_epochs": num_epochs,
         "learning_rate": learning_rate,
         "optimizer": optimizer, 
-        "batch_size": batch_size
+        "batch_size": batch_size,
+        "loss_function": loss_function
     }
     
     # Initialise model
@@ -104,7 +130,12 @@ def train(train_data_loader, val_data_loader, num_epochs:int, learning_rate:floa
         # L_g_loss = nn.CrossEntropyLoss() 
         loss_function = nn.CrossEntropyLoss()
     
+    # Reset the data loader
+    train_data_loader.reset()
+    val_data_loader.reset()
+
     history["train_acc"], history["train_loss"], history["val_acc"], history["val_loss"] = [], [], [], []
+
     for epoch in tqdm(range(num_epochs)):
         for i in range(len(train_data_loader)):
             rgb_img, action = train_data_loader[i]
@@ -122,22 +153,6 @@ def train(train_data_loader, val_data_loader, num_epochs:int, learning_rate:floa
             
             predicted_action = model(rgb_img)
             
-            # print(f"predicted_action shape: {predicted_action.shape}")
-            # print(f"target_action shape: {target_action.shape}")
-
-            #calculate combined loss
-            # loss = L1_loss(output[0:3], state[0:3]) * loss_weights[0]
-
-            #combine 0:3 and 6
-            # important_output = torch.cat((output[:, 0:3], output[:, 6].unsqueeze(1)), dim=1)
-            # important_state = torch.cat((state[:, 0:3], state[:, 6].unsqueeze(1)), dim=1)
-
-            # loss = L1_loss(predicted_action, target_action)
-            # loss += L2_loss(predicted_action, target_action) # comment if you don't want this.
-
-            # loss = L1_loss(predicted_action, target_action) # * loss_weights[1]
-            # loss += L_c_loss(output[:, 0:6], state[:, 0:6]) * loss_weights[2]
-            # loss += L_g_loss(output[:, 6], state[:, 6]) * loss_weights[3]
             train_loss = loss_function(predicted_action, target_action)
             
             train_loss.backward()
@@ -162,43 +177,44 @@ def train(train_data_loader, val_data_loader, num_epochs:int, learning_rate:floa
                 del rgb_img, output, target_action
             val_loss /= len(val_data_loader)
 
-        model.train()
-
+        model.train()  # Set model back to training mode
+        
+        # Save history
         history['train_acc'].append(train_acc)
         history['train_loss'].append(train_loss.item())
         history['val_acc'].append(val_acc)
         history['val_loss'].append(val_loss.item())
         
+        # Print progress
         output = f'Epoch: {epoch+1}/{num_epochs}, train_acc: {train_acc:4f}, train_loss: {train_loss.item():4f}'
         output += f', val_acc: {val_acc:4f}, val_loss: {val_loss.item():4f}'
         print(output)
 
-    # Save model
-    torch.save(model.state_dict(), model_name+'.pth')
+    # Save the model
+    save_loc = os.path.join(save_path, model_name+'.pth')
+    torch.save(model.state_dict(), save_loc)
+
+    # Save the history
+    save_loc = os.path.join(save_path, model_name+'.pkl')
+    with open(save_loc, 'wb') as f: 
+        pickle.dump(history, f)
 
     return history
 
 # END - Sandra - 10/04 7:45pm
 
-if __name__ == "__main__":
-    
+def train_individual_model():
     EPOCHS = 50
     LEARNING_RATE = 5e-06
     BATCH_SIZE = 4
     OPTIMIZER = "adam"
     LOSS_FUNCTION = "bce"
     
-    model_name = f"model_ep-{EPOCHS}_lr-{str(LEARNING_RATE)}_bs-{BATCH_SIZE}_opt-{OPTIMIZER}_loss-{LOSS_FUNCTION}"
-    
-    data_dir = "data\simulated-samples"
-    # data_loader = DataLoader(data_dir=data_dir, episodes=7, samples=499)
+    data_dir = "data\simulated-samples"  # task 1
     train_data_loader = DataLoader(data_dir=data_dir, episode_list=list(range(5)), samples=499)
     val_data_loader = DataLoader(data_dir=data_dir, episode_list=[5,6], samples=499)
 
     # train_data_loader, val_data_loader = split_data_loader(data_loader, val_split=0.2)
-    
-    # Delete data loader to free up memory
-    # del data_loader
     
     print(len(train_data_loader), len(val_data_loader))
 
@@ -209,10 +225,75 @@ if __name__ == "__main__":
                           batch_size=BATCH_SIZE,
                           optimizer=OPTIMIZER,
                           loss_function=LOSS_FUNCTION,
-                          model_name=model_name)
+                          save_path="task1_models",
+                          model_name="task1_model"
+    )
+
+
+if __name__ == "__main__":
     
-    # Pickle model history
-    with open(model_name + '.pkl', 'wb') as f:
-        pickle.dump(model_history, f)
+    # Load the data
+    data_dir = "data\simulated-samples"  # task 1
+    
+    # train_data_loader = DataLoader(data_dir=data_dir, episode_list=list(range(5)), samples=499)
+    # val_data_loader = DataLoader(data_dir=data_dir, episode_list=[5,6], samples=499)
+    
+    data_loader = DataLoader(data_dir=data_dir, episode_list=[0,1,2,3,4,5,6], samples=499)
+    print("Total images: ", len(data_loader))
+    
+    train_data_loader, val_data_loader = split_data_loader(data_loader, val_split=0.2)
+    print("Train images: ", len(train_data_loader))
+    print("Val images  : ", len(val_data_loader))
+
+    # Set parameters
+    save_path = "task1/models"
+    model_name = "task1"
+
+    param_grid = {
+        "num_epochs": [50, 100],
+        "learning_rate": [1e-05, 5e-05, 1e-04, 5e-04, 1e-03],
+        "batch_size": [4, 8, 16, 32, 64],
+        "optimizer": ["adam", "sgd"],
+        "loss_function": ["bce"]
+    }
+
+    # Create a ParameterGrid object
+    grid = ParameterGrid(param_grid)
+
+    best_val_loss = np.inf
+    best_params = None
+
+    # Iterate over all possible hyperparameter combinations
+    for params in grid:
+        epochs = params["num_epochs"]
+        learning_rate = params["learning_rate"]
+        batch_size = params["batch_size"]
+        optimizer = params["optimizer"]
+        loss_function = params["loss_function"]
+        
+        history = train(train_data_loader, val_data_loader, 
+                        num_epochs=epochs,
+                        learning_rate=learning_rate,
+                        batch_size=batch_size,
+                        optimizer=optimizer,
+                        loss_function=loss_function,
+                        save_path=save_path,
+                        model_name=model_name
+                        )
+        
+        min_val_loss = np.min(history["val_loss"])
+
+        if min_val_loss < best_val_loss:
+            best_val_loss = min_val_loss
+            best_params = params
+    
+    # Print results
+    print("Best validation loss:", best_val_loss)
+    print("Best parameters:", best_params)
+    
+    best_model_name = f"{model_name}_best_model_{best_params['num_epochs']}_{best_params['learning_rate']}_{best_params['batch_size']}_{best_params['optimizer']}_{best_params['loss_function']}"
+    best_model_path = os.path.join(save_path, best_model_name+".pth")
+    
+    print("Best model path:", best_model_path)
     
     

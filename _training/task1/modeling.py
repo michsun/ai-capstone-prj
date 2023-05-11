@@ -49,6 +49,7 @@ class SpatialSoftmax(torch.nn.Module):
 
         return feature_keypoints
 
+
 #Implementation of Network from Figure 3 (on pg 4) of paper
 class VRNet(nn.Module):
     def __init__(self):
@@ -169,7 +170,7 @@ class DataLoader(Dataset):
         self.rgb_images, self.actions = self.load_data() # Changed - Sandra 10/04 - 7:50pm states to actions
         # self.arrayIndicies = list([i for i in range(len(self.rgb_images))])
         self.arrayIndicies = indices if indices is not None else list(range(len(self.rgb_images)))
-        print(len(self.rgb_images), len(self.actions))
+        # print(len(self.rgb_images), len(self.actions))
         assert(len(self.rgb_images) == len(self.actions))
     
     # train_data_loader function - by Sandra
@@ -180,9 +181,10 @@ class DataLoader(Dataset):
         rgbs = []
         actions = []
         
+        print("Loading data...")
         for i in self.episode_list:
             episode_number = str(i)
-            print(f"Loading episode {episode_number}")
+            print(f"\tepisode {episode_number}")
 
             episode_dir = os.path.join(self.data_dir, "episode-" + episode_number)
             episode_info_df = pd.read_csv(episode_dir + "/episode-" + episode_number +".csv")
@@ -211,9 +213,6 @@ class DataLoader(Dataset):
         # #compute std
         # rgb_std = torch.std(rgbs, dim=(0, 2, 3))
         # #normalize images
-        # rgbs[:,0,:,:] = (rgbs[:,0,:,:] - rgb_mean[0]) / rgb_std[0]
-        # rgbs[:,1,:,:] = (rgbs[:,1,:,:] - rgb_mean[0]) / rgb_std[1]
-        # rgbs[:,2,:,:] = (rgbs[:,2,:,:] - rgb_mean[0]) / rgb_std[2]
 
         # Modified by Sandra - 20230413 - to ensure data does not contain nan or infinite values
         epsilon = 1e-6
@@ -227,13 +226,15 @@ class DataLoader(Dataset):
         return rgbs, actions
     
     def __len__(self):
-        return len(self.actions) // self.batch_size # changed - Sandra - states to actions
+        # return len(self.actions) // self.batch_size # changed - Sandra - states to actions
+        print("Called __len__")
+        return len(self.arrayIndicies) // self.batch_size # changed - Michelle
 
     def __getitem__(self, idx):
         #shuffle array index mapping
-        # if idx == 0:
         np.random.seed(SEED)
-        np.random.shuffle(self.arrayIndicies)
+        if idx == 0:
+            np.random.shuffle(self.arrayIndicies)
             
         idx = idx * self.batch_size
         desiredIndexes = self.arrayIndicies[idx:idx+self.batch_size]
@@ -252,8 +253,11 @@ class DataLoader(Dataset):
         action = action.view(1, -1) 
 
         return rgb_img, action
-    
+
+
 def split_data_loader(data_loader: DataLoader, val_split: float):
+    """Splits a data loader into a training and validation data loader."""
+
     train_split = int((1 - val_split) * len(data_loader))
     indices = np.arange(len(data_loader))
     np.random.seed(SEED)
@@ -263,11 +267,12 @@ def split_data_loader(data_loader: DataLoader, val_split: float):
 
     train_data_loader = data_loader
     train_data_loader.arrayIndices = train_indices
-    val_data_loader = data_loader 
+    val_data_loader = data_loader
     val_data_loader.arrayIndices = val_indices
     
     return train_data_loader, val_data_loader
-    
+
+
 class DataPreprocessor():
     def __init__(self, rgb_mean, rgb_std):
         self.rgb_mean = rgb_mean
@@ -285,12 +290,15 @@ def print_output(string):
     with open("output.txt", "a") as f:
         f.write(string + '\n')
 
+
 if __name__ == "__main__":
     # Test Data Loader
     data_dir = "data\simulated-samples"
-    data_loader = DataLoader(data_dir = data_dir, 
-                             episodes = 5, 
-                             samples = 499
-    )
+    episode_list = [0, 1, 2, 3, 4, 5, 6]
+    data_loader = DataLoader(data_dir, episode_list, samples=499)
+    print(len(data_loader))
+    train_data_loader, val_data_loader = split_data_loader(data_loader, 0.2)
+    print(len(train_data_loader))
+    print(len(val_data_loader))
     
 
