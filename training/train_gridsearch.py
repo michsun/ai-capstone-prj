@@ -111,7 +111,7 @@ if __name__ == "__main__":
     print("Best validation loss :", best_val_loss)
     print("Best parameters      :", best_params)
     
-    best_model_name = f"{MODEL_NAME}_best_model_{best_params['num_epochs']}_{best_params['learning_rate']}_{best_params['batch_size']}_{best_params['optimizer']}_{best_params['loss_function']}"
+    best_model_name = f"{MODEL_NAME}_best_model_{best_params['num_epochs']}_{best_params['learning_rate']}_{best_params['batch_size']}_{best_params['optimizer']}_{LOSS_FUNCTION}"
     best_model_path = os.path.join(OUTPUT_DIR, best_model_name+".pth")
     print("Best model path      :", best_model_path)
 
