@@ -10,8 +10,11 @@ from datetime import timedelta
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 
+from typing import Tuple
+
 from dataset import CustomDataset
 from network import CustomNet
+
 
 # Set seed for reproducibility - for DataLoader shuffle
 torch.manual_seed(0)
@@ -31,19 +34,29 @@ class LcLoss(nn.Module):
         return torch.sum(loss)
 
 
-def save_best_model(metric: str, previous_val: float, previous_model_path: str, curr_vals: tuple[float, float, float, float], 
+def save_best_model(metric: str, previous_val: float, previous_model_path: str, curr_vals: Tuple[float, float, float, float], 
                     curr_model: CustomNet, epoch:int, delete_previous_best:bool = False, **kwargs):
-    
+    """Saves the model if it is the best model so far. If the metric is loss, then the model with the lowest loss is saved.
+    If the metric is accuracy, then the model with the highest accuracy is saved."""
     metric_map = { "train_acc": 0, "train_loss": 1, "val_acc": 2, "val_loss": 3 }
     curr_val = curr_vals[metric_map[metric]]
     
+    if previous_val is None or previous_model_path is None:
+        raise ValueError("previous_val and previous_model_path must be provided")
+    
+    # If loss metric, return if current loss is greater than previous loss
     if (metric == "val_loss" or metric == "train_loss") and curr_val > previous_val:
         return previous_val, previous_model_path
+    # If accuracy metric, return if current accuracy is less than previous accuracy
     elif (metric == "train_acc" or metric == "val_acc") and curr_val < previous_val:
         return previous_val, previous_model_path
 
+    # Otherwise, save the new best model
+    # Delete previous best model if specified
     if delete_previous_best and previous_model_path is not None:
         os.remove(previous_model_path)
+    
+    # Save new best model
     new_best_path = os.path.join(kwargs.get('save_path'), 
                                  f"{kwargs.get('model_name')}_best-{epoch}_{metric}-{curr_val:.4f}.pth")
     print(f"Saving new best model to {new_best_path}")
@@ -53,7 +66,7 @@ def save_best_model(metric: str, previous_val: float, previous_model_path: str, 
 
 
 def get_accuracy(model: CustomNet, data_loader: DataLoader, device: torch.device, type: str):
-
+    """Calculates the accuracy of the model on the given data loader, using the given device and classification type."""
     def binary_calc(pred_output):
         # Apply sigmoid activation
         pred_output = torch.sigmoid(pred_output)
@@ -142,7 +155,10 @@ def train(train_dataset: CustomDataset, val_dataset: CustomDataset,
 
     # Check if save_loc exists
     if not os.path.exists(save_path):
-        os.makedirs(save_path)
+        # os.makedirs(save_path)
+        from pathlib import Path
+        Path(save_path).mkdir(parents=True, exist_ok=True)
+    
     
     # Set model name
     model_name = f"{model_name}_ep-{num_epochs}_lr-{learning_rate}_bs-{batch_size}_opt-{optimizer}_loss-{loss_function}"
