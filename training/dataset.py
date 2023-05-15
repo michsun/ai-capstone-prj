@@ -20,7 +20,7 @@ class CustomDataset(Dataset):
             assert len(samples) == len(episode_list), \
                 "The number of samples must be equal to the number of episodes"
             
-        self.rgb_images, self.actions = self.load_data()
+        self.rgb_images, self.actions, self.rgb_std, self.rgb_mean = self.load_data()
         assert(len(self.rgb_images) == len(self.actions))
 
         self.indices = indices if indices is not None else list(range(len(self.rgb_images)))
@@ -83,7 +83,7 @@ class CustomDataset(Dataset):
         
         print("Dataset loaded.")
         
-        return rgbs, actions
+        return rgbs, actions, rgb_std, rgb_mean
     
     def __len__(self):
         return len(self.indices)
