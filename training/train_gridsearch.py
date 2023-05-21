@@ -45,7 +45,7 @@ if __name__ == "__main__":
     # LOSS_FUNCTION = "lg"
 
     # PARAM_GRID = {
-    #     "num_epochs": [100],
+    #     "num_epochs": [100, 150],
     #     "learning_rate": [1e-03, 5e-04, 1e-04, 5e-05, 1e-05],
     #     "batch_size": [64, 128], 
     #     "optimizer": ["adam"],
