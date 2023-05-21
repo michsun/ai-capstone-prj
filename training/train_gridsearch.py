@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # PARAM_GRID = {
     #     "num_epochs": [100],
     #     "learning_rate": [1e-03, 5e-04, 1e-04, 5e-05, 1e-05],
-    #     "batch_size": [16, 32, 64, 128], 
+    #     "batch_size": [64, 128], 
     #     "optimizer": ["adam"],
     # }
     
